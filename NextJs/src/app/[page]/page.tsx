@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import AppShell from "@/components/AppShell";
 
-export const dynamicParams = false;
-
 const titles: Record<string, string> = {
   dashboard: "Dashboard • EcoGo",
   users: "Users • EcoGo",
