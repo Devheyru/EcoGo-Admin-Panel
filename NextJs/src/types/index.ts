@@ -1,11 +1,18 @@
-export type UserRole = 'admin' | 'operator';
+export * from "./user";
+export * from "./driver";
+export * from "./ride";
+export * from "./chat";
+export * from "./payment";
+export * from "./settings";
+
+export type UserRole = "admin" | "operator";
 
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   createdAt: string;
   lastLogin?: string;
 }
@@ -17,7 +24,7 @@ export interface Booking {
   vehicleType: string;
   pickupLocation: string;
   dropoffLocation: string;
-  status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+  status: "pending" | "confirmed" | "in-progress" | "completed" | "cancelled";
   fare: number;
   distance: number;
   createdAt: string;
@@ -41,7 +48,7 @@ export interface AuditLog {
   action: string;
   timestamp: string;
   details: string;
-  severity: 'info' | 'warning' | 'critical';
+  severity: "info" | "warning" | "critical";
 }
 
 export interface Settings {
@@ -54,4 +61,3 @@ export interface Settings {
   maintenanceMode: boolean;
   allowNewRegistrations: boolean;
 }
-

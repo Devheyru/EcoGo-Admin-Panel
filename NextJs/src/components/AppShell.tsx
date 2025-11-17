@@ -9,7 +9,7 @@ import { DashboardPage } from "@/components/DashboardPage";
 import { UsersPage } from "@/components/UsersPage";
 import { DriversPage } from "@/components/DriversPage";
 import { RidersPage } from "@/components/RidersPage";
-import { AdminsPage } from "@/components/AdminsPage";
+import {AdminsPage } from "@/components/AdminsPage";
 import { OperatorsPage } from "@/components/OperatorsPage";
 import { BookingsPage } from "@/components/BookingsPage";
 import { ReportsPage } from "@/components/ReportsPage";

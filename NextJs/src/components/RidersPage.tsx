@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, UserPlus, TrendingUp, Calendar, DollarSign, Eye, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
+import { auth, db } from "../firebase/config";
+import { useEffect } from 'react';
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  collection,
+  getDocs,
+} from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 interface Rider {
   id: string;
@@ -22,73 +33,153 @@ interface Rider {
   lastTrip: string;
   status: 'active' | 'inactive' | 'suspended';
 }
+interface RideData {
+  id: string;
+  pickup: string;
+  destination: string;
+  name: string;
+  fare: number;
+  status: string;
+  riderId: string;
+  driverId: string;
+}
+interface AdminData {
+  name?: string;
+  email?: string;
+  role?: string;
+}
 
-const mockRiders: Rider[] = [
-  {
-    id: 'R001',
-    name: 'Alice Cooper',
-    email: 'alice.c@email.com',
-    phone: '+1 416-555-1001',
-    totalTrips: 45,
-    totalSpent: 1245.50,
-    memberSince: '2024-01-15',
-    lastTrip: '2025-11-14',
-    status: 'active',
-  },
-  {
-    id: 'R002',
-    name: 'Bob Smith',
-    email: 'bob.smith@email.com',
-    phone: '+1 416-555-1002',
-    totalTrips: 78,
-    totalSpent: 2156.75,
-    memberSince: '2023-11-20',
-    lastTrip: '2025-11-13',
-    status: 'active',
-  },
-  {
-    id: 'R003',
-    name: 'Carol White',
-    email: 'carol.w@email.com',
-    phone: '+1 416-555-1003',
-    totalTrips: 23,
-    totalSpent: 645.20,
-    memberSince: '2024-05-10',
-    lastTrip: '2025-11-10',
-    status: 'active',
-  },
-  {
-    id: 'R004',
-    name: 'Daniel Lee',
-    email: 'daniel.l@email.com',
-    phone: '+1 416-555-1004',
-    totalTrips: 12,
-    totalSpent: 356.00,
-    memberSince: '2024-08-22',
-    lastTrip: '2025-10-28',
-    status: 'inactive',
-  },
-  {
-    id: 'R005',
-    name: 'Emma Wilson',
-    email: 'emma.w@email.com',
-    phone: '+1 416-555-1005',
-    totalTrips: 156,
-    totalSpent: 4523.90,
-    memberSince: '2023-06-15',
-    lastTrip: '2025-11-14',
-    status: 'active',
-  },
-];
+// const mockRiders: Rider[] = [
+//   {
+//     id: 'R001',
+//     name: 'Alice Cooper',
+//     email: 'alice.c@email.com',
+//     phone: '+1 416-555-1001',
+//     totalTrips: 45,
+//     totalSpent: 1245.50,
+//     memberSince: '2024-01-15',
+//     lastTrip: '2025-11-14',
+//     status: 'active',
+//   },
+//   {
+//     id: 'R002',
+//     name: 'Bob Smith',
+//     email: 'bob.smith@email.com',
+//     phone: '+1 416-555-1002',
+//     totalTrips: 78,
+//     totalSpent: 2156.75,
+//     memberSince: '2023-11-20',
+//     lastTrip: '2025-11-13',
+//     status: 'active',
+//   },
+//   {
+//     id: 'R003',
+//     name: 'Carol White',
+//     email: 'carol.w@email.com',
+//     phone: '+1 416-555-1003',
+//     totalTrips: 23,
+//     totalSpent: 645.20,
+//     memberSince: '2024-05-10',
+//     lastTrip: '2025-11-10',
+//     status: 'active',
+//   },
+//   {
+//     id: 'R004',
+//     name: 'Daniel Lee',
+//     email: 'daniel.l@email.com',
+//     phone: '+1 416-555-1004',
+//     totalTrips: 12,
+//     totalSpent: 356.00,
+//     memberSince: '2024-08-22',
+//     lastTrip: '2025-10-28',
+//     status: 'inactive',
+//   },
+//   {
+//     id: 'R005',
+//     name: 'Emma Wilson',
+//     email: 'emma.w@email.com',
+//     phone: '+1 416-555-1005',
+//     totalTrips: 156,
+//     totalSpent: 4523.90,
+//     memberSince: '2023-06-15',
+//     lastTrip: '2025-11-14',
+//     status: 'active',
+//   },
+// ];
 
 export function RidersPage() {
-  const [riders, setRiders] = useState<Rider[]>(mockRiders);
+  const [riders, setRiders] = useState<Rider[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [messageText, setMessageText] = useState('');
+   const [adminData, setAdminData] = useState<AdminData | null>(null);
+  const [loading, setLoading] = useState(true);
+     const router = useRouter();
+    // const [riders, setRiders] = useState<UserData[]>([]);
+  const [rides, setRides] = useState<RideData[]>([]);
+  
+    useEffect(() => {
+       const unsubscribe = onAuthStateChanged(auth, async (user) => {
+         if (!user) {
+           router.push("/login");
+           return;
+         }
+  
+         const adminRef = doc(db, "admins", user.uid);
+         const adminSnap = await getDoc(adminRef);
+  
+         if (adminSnap.exists()) {
+           setAdminData(adminSnap.data());
+           loadAllData(); // <--- now real-time
+         } else {
+           router.push("/login");
+         }
+  
+         setLoading(false);
+       });
+  
+       return () => unsubscribe();
+     }, []);
+     const loadAllData = () => {
+       // 🔵 Real-time: Drivers
+       
+  
+       // 🟢 Real-time: Riders
+       const unsubscribeRiders = onSnapshot(
+         collection(db, "riders"),
+         (snapshot) => {
+           setRiders(
+             snapshot.docs.map((doc) => ({
+               id: doc.id,
+               ...doc.data(),
+             }))
+           );
+         }
+       );
+  
+       // 🟠 Real-time: Rides
+       const unsubscribeRides = onSnapshot(
+         collection(db, "rides"),
+         (snapshot) => {
+           setRides(
+             snapshot.docs.map((doc) => ({
+               id: doc.id,
+               ...doc.data(),
+             }))
+           );
+         }
+       );
+  
+       // Return all unsubs so you can close listeners when admin logs out or leaves page
+       return () => {
+        
+         unsubscribeRiders();
+         unsubscribeRides();
+       };
+     };
 
   const filteredRiders = riders.filter(
     (rider) =>
@@ -232,7 +323,7 @@ export function RidersPage() {
             <table className="w-full">
               <thead>
                 <tr style={{ borderBottomWidth: '1px', borderColor: '#E6E6E6' }}>
-                  <th className="text-left p-4">ID</th>
+                  {/* <th className="text-left p-4">ID</th> */}
                   <th className="text-left p-4">Name</th>
                   <th className="text-left p-4">Contact</th>
                   <th className="text-left p-4">Status</th>
@@ -248,7 +339,7 @@ export function RidersPage() {
                   const statusColor = getStatusColor(rider.status);
                   return (
                     <tr key={rider.id} style={{ borderBottomWidth: '1px', borderColor: '#E6E6E6' }}>
-                      <td className="p-4">{rider.id}</td>
+                      {/* <td className="p-4">{rider.id}</td> */}
                       <td className="p-4">
                         <p>{rider.name}</p>
                       </td>
@@ -257,13 +348,13 @@ export function RidersPage() {
                         <p className="text-sm" style={{ color: '#2D2D2D' }}>{rider.phone}</p>
                       </td>
                       <td className="p-4">
-                        <Badge style={{ backgroundColor: statusColor.bg, color: statusColor.text }}>
+                        <Badge style={{  }}>
                           {rider.status}
                         </Badge>
                       </td>
                       <td className="p-4">{rider.totalTrips}</td>
                       <td className="p-4" style={{ color: '#2DB85B' }}>
-                        ${rider.totalSpent.toFixed(2)}
+                        {/* ${rider.totalSpent.toFixed(2)} */}
                       </td>
                       <td className="p-4 text-sm" style={{ color: '#2D2D2D' }}>
                         {new Date(rider.memberSince).toLocaleDateString()}

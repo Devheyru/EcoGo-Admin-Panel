@@ -1,5 +1,16 @@
 "use client";
+import { useRouter } from "next/navigation";
 
+import { auth, db } from "../firebase/config";
+import { useEffect } from "react";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  collection,
+  getDocs,
+} from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,10 +20,49 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, UserPlus, Star, Car, MapPin, MessageSquare, Eye } from 'lucide-react';
+import {
+  Search,
+  UserPlus,
+  Star,
+  Car,
+  MapPin,
+  MessageSquare,
+  Eye,
+  TrendingUp,
+  Calendar,
+  DollarSign,
+} from "lucide-react";
 import { toast } from 'sonner';
 
-interface Driver {
+
+
+interface Rider {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  totalTrips: number;
+  totalSpent: number;
+  memberSince: string;
+  lastTrip: string;
+  status: "active" | "inactive" | "suspended";
+}
+interface RideData {
+  id: string;
+  pickup: string;
+  destination: string;
+  name: string;
+  fare: number;
+  status: string;
+  riderId: string;
+  driverId: string;
+}
+interface AdminData {
+  name?: string;
+  email?: string;
+  role?: string;
+}
+interface Drivers {
   id: string;
   name: string;
   email: string;
@@ -25,75 +75,84 @@ interface Driver {
   location: string;
 }
 
-const mockDrivers: Driver[] = [
-  {
-    id: 'D001',
-    name: 'James Wilson',
-    email: 'james.w@ecogo.ca',
-    phone: '+1 416-555-0101',
-    vehicleType: 'EV Sedan',
-    licensePlate: 'ABC 123',
-    rating: 4.8,
-    totalTrips: 342,
-    status: 'active',
-    location: 'Downtown Toronto',
-  },
-  {
-    id: 'D002',
-    name: 'Maria Garcia',
-    email: 'maria.g@ecogo.ca',
-    phone: '+1 416-555-0102',
-    vehicleType: 'EV SUV',
-    licensePlate: 'XYZ 456',
-    rating: 4.9,
-    totalTrips: 428,
-    status: 'on-trip',
-    location: 'Mississauga',
-  },
-  {
-    id: 'D003',
-    name: 'Robert Chen',
-    email: 'robert.c@ecogo.ca',
-    phone: '+1 416-555-0103',
-    vehicleType: 'EV Compact',
-    licensePlate: 'DEF 789',
-    rating: 4.7,
-    totalTrips: 298,
-    status: 'active',
-    location: 'Scarborough',
-  },
-  {
-    id: 'D004',
-    name: 'Lisa Anderson',
-    email: 'lisa.a@ecogo.ca',
-    phone: '+1 416-555-0104',
-    vehicleType: 'EV Van',
-    licensePlate: 'GHI 012',
-    rating: 4.6,
-    totalTrips: 215,
-    status: 'offline',
-    location: 'North York',
-  },
-];
+
 
 export function DriversPage() {
-  const [drivers, setDrivers] = useState<Driver[]>(mockDrivers);
+  const [drivers, setDrivers] = useState<Drivers[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<Drivers | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [newDriverVehicleType, setNewDriverVehicleType] = useState('');
+  const [riders, setRiders] = useState<Rider[]>([]);
+
+  const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
+
+  const [adminData, setAdminData] = useState<AdminData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  // const [riders, setRiders] = useState<UserData[]>([]);
+  const [rides, setRides] = useState<RideData[]>([]);
+
+   useEffect(() => {
+     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+       if (!user) {
+         router.push("/login");
+         return;
+       }
+
+       const adminRef = doc(db, "admins", user.uid);
+       const adminSnap = await getDoc(adminRef);
+
+       if (adminSnap.exists()) {
+         setAdminData(adminSnap.data());
+         loadAllData(); // <--- now real-time
+       } else {
+         router.push("/login");
+       }
+
+       setLoading(false);
+     });
+
+     return () => unsubscribe();
+   }, []);
+   const loadAllData = () => {
+     // 🔵 Real-time: Drivers
+
+     // 🟢 Real-time: Riders
+     const unsubscribeDrivers = onSnapshot(
+       collection(db, "drivers"),
+       (snapshot) => {
+         setDrivers(
+           snapshot.docs.map((doc) => ({
+             id: doc.id,
+             ...doc.data(),
+           }))
+         );
+       }
+     );
+     
+
+    //  // 🟠 Real-time: Rides
+     
+
+     // Return all unsubs so you can close listeners when admin logs out or leaves page
+     return () => {
+       
+        unsubscribeDrivers();
+     };
+   };
 
   const filteredDrivers = drivers.filter(
     (driver) =>
-      driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      // driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       driver.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       driver.licensePlate.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStatusColor = (status: Driver['status']) => {
+  const getStatusColor = (status: Drivers['status']) => {
     const colors = {
       active: { bg: '#D0F5DC', text: '#1B6635' },
       offline: { bg: '#E6E6E6', text: '#2D2D2D' },
@@ -108,11 +167,14 @@ export function DriversPage() {
     { label: 'On Trip', value: drivers.filter((d) => d.status === 'on-trip').length },
     { label: 'Offline', value: drivers.filter((d) => d.status === 'offline').length },
   ];
+  const totalRevenue = drivers.reduce((sum, driver) => sum + driver.rating, 0);
+  const totalTrips = drivers.reduce((sum, driver) => sum + driver.totalTrips, 0);
 
+ 
   const handleAddDriver = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const newDriver: Driver = {
+    const newDriver: Drivers = {
       id: `D${String(drivers.length + 1).padStart(3, '0')}`,
       name: formData.get('name') as string,
       email: formData.get('email') as string,
@@ -146,8 +208,8 @@ export function DriversPage() {
           <h1 style={{ color: '#2F3A3F' }}>Drivers Dashboard</h1>
           <p style={{ color: '#2D2D2D' }}>Manage and monitor all drivers</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} >
+          <DialogTrigger asChild >
             <Button style={{ backgroundColor: '#2DB85B', color: 'white' }}>
               <UserPlus className="w-4 h-4 mr-2" />
               Add Driver
@@ -218,7 +280,7 @@ export function DriversPage() {
       </div>
 
       <Card>
-        <CardContent className="pt-6">
+        
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: '#2D2D2D' }} />
             <Input
@@ -228,7 +290,7 @@ export function DriversPage() {
               className="pl-10"
             />
           </div>
-        </CardContent>
+        
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -241,7 +303,7 @@ export function DriversPage() {
                   <div className="flex-1">
                     <CardTitle className="flex items-center gap-2">
                       {driver.name}
-                      <Badge style={{ backgroundColor: statusColor.bg, color: statusColor.text }}>
+                      <Badge>
                         {driver.status}
                       </Badge>
                     </CardTitle>
@@ -275,7 +337,7 @@ export function DriversPage() {
 
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" style={{ color: '#2DB85B' }} />
-                  <p className="text-sm" style={{ color: '#2D2D2D' }}>{driver.location}</p>
+                  {/* <p className="text-sm" style={{ color: '#2D2D2D' }}>{driver}</p> */}
                 </div>
 
                 <div className="flex gap-2 pt-2">
@@ -371,3 +433,4 @@ export function DriversPage() {
   );
 }
 
+export default DriversPage;

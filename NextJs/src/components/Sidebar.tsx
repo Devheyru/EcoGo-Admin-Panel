@@ -50,10 +50,10 @@ export function Sidebar({
   const menuItems = userRole === "admin" ? adminMenuItems : operatorMenuItems;
 
   const userManagementItems = [
-    { id: "drivers", label: "Drivers", count: 156 },
-    { id: "riders", label: "Riders", count: 892 },
-    { id: "admins", label: "Admins", count: 4 },
-    { id: "operators", label: "Operators", count: 12 },
+    { id: "drivers", label: "Drivers" },
+    { id: "riders", label: "Riders"},
+    { id: "admins", label: "Admins"},
+    { id: "operators", label: "Operators"},
   ];
 
   return (
@@ -82,8 +82,8 @@ export function Sidebar({
 
       {/* User Info */}
       <div
-        className="px-6 py-4 mb-4"
-        style={{ backgroundColor: "var(--eco-green)" }}
+        className="px-2 py-2 mb-2"
+        style={{ backgroundColor: "var(--eco-red)" }}
       >
         <div className="flex items-center gap-2 mb-2">
           <Shield className="w-4 h-4" style={{ color: "var(--white)" }} />
@@ -144,7 +144,7 @@ export function Sidebar({
                         }}
                       >
                         <span>{subItem.label}</span>
-                        <span
+                        {/* <span
                           className="px-2 py-0.5 rounded text-xs"
                           style={{
                             backgroundColor: "var(--gray-light)",
@@ -152,7 +152,7 @@ export function Sidebar({
                           }}
                         >
                           {subItem.count}
-                        </span>
+                        </span> */}
                       </button>
                     ))}
                   </div>

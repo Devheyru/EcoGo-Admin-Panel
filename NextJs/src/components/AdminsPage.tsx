@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+// import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,43 @@ import { Label } from '@/components/ui/label';
 import { Search, UserPlus, Shield, Edit, Trash2 } from 'lucide-react';
 import { User } from '@/types';
 import { toast } from 'sonner';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { auth, db } from "../../src/firebase/config";
+
+import { onAuthStateChanged } from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  collection,
+  getDocs,
+} from "firebase/firestore";
+
+interface UserData {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  [key: string]: any;
+}
+
+interface RideData {
+  id: string;
+  pickup: string;
+  destination: string;
+  name: string;
+  fare: number;
+  status: string;
+  riderId: string;
+  driverId: string;
+}
+
+interface AdminData {
+  name?: string;
+  email?: string;
+  role?: string;
+}
 
 const mockAdmins: User[] = [
   {
@@ -54,7 +91,104 @@ export function AdminsPage() {
   const [admins, setAdmins] = useState<User[]>(mockAdmins);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+   const router = useRouter();
+   const [admin, setAdminData] = useState<AdminData[]>();
+   const [drivers, setDrivers] = useState<UserData[]>([]);
+   const [riders, setRiders] = useState<UserData[]>([]);
+   const [rides, setRides] = useState<RideData[]>([]);
+   const [loading, setLoading] = useState(true);
 
+  
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        router.push("/");
+        return;
+      }
+
+      const adminRef = doc(db, "admins", user.uid);
+      const adminSnap = await getDoc(adminRef);
+
+      if (adminSnap.exists()) {
+        setAdminData(adminSnap.data());
+        loadAllData(); // <--- now real-time
+      } else {
+        router.push("/");
+      }
+
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+
+   const loadAllData = () => {
+     // 🔵 Real-time: Drivers
+     const unsubscribeAdmins = onSnapshot(
+       collection(db, "admins"),
+       (snapshot) => {
+         setAdmins(
+           snapshot.docs.map((doc) => ({
+             id: doc.id,
+             ...doc.data(),
+           }))
+         );
+       }
+     );
+     const unsubscribeDrivers = onSnapshot(
+       collection(db, "drivers"),
+       (snapshot) => {
+         setDrivers(
+           snapshot.docs.map((doc) => ({
+             id: doc.id,
+             ...doc.data(),
+           }))
+         );
+       }
+     );
+
+     // 🟢 Real-time: Riders
+     const unsubscribeRiders = onSnapshot(
+       collection(db, "riders"),
+       (snapshot) => {
+         setRiders(
+           snapshot.docs.map((doc) => ({
+             id: doc.id,
+             ...doc.data(),
+           }))
+         );
+       }
+     );
+
+     // 🟠 Real-time: Rides
+     const unsubscribeRides = onSnapshot(
+       collection(db, "rides"),
+       (snapshot) => {
+         setRides(
+           snapshot.docs.map((doc) => ({
+             id: doc.id,
+             ...doc.data(),
+           }))
+         );
+       }
+     );
+
+     // Return all unsubs so you can close listeners when admin logs out or leaves page
+     return () => {
+       unsubscribeDrivers();
+       unsubscribeRiders();
+       unsubscribeRides();
+       unsubscribeAdmins();
+     };
+  };
+  
+  if (loading)
+    return (
+      <div className="text-center text-2xl font-semibold mt-20">Loading...</div>
+    );
+  
+  
   const filteredAdmins = admins.filter(
     (admin) =>
       admin.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,12 +226,14 @@ export function AdminsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 style={{ color: '#2F3A3F' }}>Admin Dashboard</h1>
-          <p style={{ color: '#2D2D2D' }}>Manage system administrators and permissions</p>
+          <h1 style={{ color: "#2F3A3F" }}>Admin Dashboard</h1>
+          <p style={{ color: "#2D2D2D" }}>
+            Manage system administrators and permissions
+          </p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button style={{ backgroundColor: '#2DB85B', color: 'white' }}>
+            <Button style={{ backgroundColor: "#2DB85B", color: "white" }}>
               <UserPlus className="w-4 h-4 mr-2" />
               Add Admin
             </Button>
@@ -116,18 +252,36 @@ export function AdminsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Corporate Email</Label>
-                <Input id="email" name="email" type="email" placeholder="admin@ecogo.ca" required />
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="admin@ecogo.ca"
+                  required
+                />
               </div>
-              <div className="p-4 rounded-lg" style={{ backgroundColor: '#FEF3C7' }}>
-                <p className="text-sm" style={{ color: '#92400E' }}>
-                  <strong>Important:</strong> This user will have full administrative access including user management, system settings, and audit logs.
+              <div
+                className="p-4 rounded-lg"
+                style={{ backgroundColor: "#FEF3C7" }}
+              >
+                <p className="text-sm" style={{ color: "#92400E" }}>
+                  <strong>Important:</strong> This user will have full
+                  administrative access including user management, system
+                  settings, and audit logs.
                 </p>
               </div>
               <div className="flex gap-2 justify-end">
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddDialogOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" style={{ backgroundColor: '#2DB85B', color: 'white' }}>
+                <Button
+                  type="submit"
+                  style={{ backgroundColor: "#2DB85B", color: "white" }}
+                >
                   Create Admin
                 </Button>
               </div>
@@ -141,21 +295,27 @@ export function AdminsPage() {
           <Card key={stat.label}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#D0F5DC' }}>
-                  <Shield className="w-5 h-5" style={{ color: '#2DB85B' }} />
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: "#D0F5DC" }}
+                >
+                  <Shield className="w-5 h-5" style={{ color: "#2DB85B" }} />
                 </div>
-                <h3 style={{ color: '#2DB85B' }}>{stat.value}</h3>
+                <h3 style={{ color: "#2DB85B" }}>{stat.value}</h3>
               </div>
-              <p style={{ color: '#2D2D2D' }}>{stat.label}</p>
+              <p style={{ color: "#2D2D2D" }}>{stat.label}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Card>
+      {/* <Card> */}
         <CardContent className="pt-6">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: '#2D2D2D' }} />
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5"
+              style={{ color: "#2D2D2D" }}
+            />
             <Input
               placeholder="Search admins by name or email..."
               value={searchTerm}
@@ -164,21 +324,23 @@ export function AdminsPage() {
             />
           </div>
         </CardContent>
-      </Card>
+      {/* </Card> */}
 
-      <Card style={{ backgroundColor: '#FEF3C7', borderColor: '#92400E' }}>
+      {/* <Card style={{ backgroundColor: "#FEF3C7", borderColor: "#92400E" }}>
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
-            <Shield className="w-5 h-5 mt-1" style={{ color: '#92400E' }} />
+            <Shield className="w-5 h-5 mt-1" style={{ color: "#92400E" }} />
             <div>
-              <h4 style={{ color: '#92400E' }}>Administrator Access</h4>
-              <p style={{ color: '#92400E' }}>
-                Administrators have full system access. Only grant admin privileges to trusted personnel. All admin actions are logged in the audit trail.
+              <h4 style={{ color: "#92400E" }}>Administrator Access</h4>
+              <p style={{ color: "#92400E" }}>
+                Administrators have full system access. Only grant admin
+                privileges to trusted personnel. All admin actions are logged in
+                the audit trail.
               </p>
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       <Card>
         <CardHeader>
@@ -186,9 +348,12 @@ export function AdminsPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
+           
             <table className="w-full">
               <thead>
-                <tr style={{ borderBottomWidth: '1px', borderColor: '#E6E6E6' }}>
+                <tr
+                  style={{ borderBottomWidth: "1px", borderColor: "#E6E6E6" }}
+                >
                   <th className="text-left p-4">Name</th>
                   <th className="text-left p-4">Email</th>
                   <th className="text-left p-4">Status</th>
@@ -199,10 +364,16 @@ export function AdminsPage() {
               </thead>
               <tbody>
                 {filteredAdmins.map((admin) => (
-                  <tr key={admin.id} style={{ borderBottomWidth: '1px', borderColor: '#E6E6E6' }}>
+                  <tr
+                    key={admin.id}
+                    style={{ borderBottomWidth: "1px", borderColor: "#E6E6E6" }}
+                  >
                     <td className="p-4">
                       <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4" style={{ color: '#2DB85B' }} />
+                        <Shield
+                          className="w-4 h-4"
+                          style={{ color: "#2DB85B" }}
+                        />
                         <span>{admin.name}</span>
                       </div>
                     </td>
@@ -210,19 +381,21 @@ export function AdminsPage() {
                     <td className="p-4">
                       <Badge
                         style={
-                          admin.status === 'active'
-                            ? { backgroundColor: '#D0F5DC', color: '#1B6635' }
-                            : { backgroundColor: '#E6E6E6', color: '#2D2D2D' }
+                          admin.status === "active"
+                            ? { backgroundColor: "#D0F5DC", color: "#1B6635" }
+                            : { backgroundColor: "#E6E6E6", color: "#2D2D2D" }
                         }
                       >
                         {admin.status}
                       </Badge>
                     </td>
-                    <td className="p-4 text-sm" style={{ color: '#2D2D2D' }}>
+                    <td className="p-4 text-sm" style={{ color: "#2D2D2D" }}>
                       {new Date(admin.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="p-4 text-sm" style={{ color: '#2D2D2D' }}>
-                      {admin.lastLogin ? new Date(admin.lastLogin).toLocaleString() : 'Never'}
+                    <td className="p-4 text-sm" style={{ color: "#2D2D2D" }}>
+                      {admin.lastLogin
+                        ? new Date(admin.lastLogin).toLocaleString()
+                        : "Never"}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-end gap-2">
@@ -248,4 +421,215 @@ export function AdminsPage() {
     </div>
   );
 }
+
+
+
+
+
+// --- Interfaces ---
+// interface UserData {
+//   id: string;
+//   name?: string;
+//   email?: string;
+//   phone?: string;
+//   [key: string]: any;
+// }
+
+// interface RideData {
+//   id: string;
+//   pickup: string;
+//   destination: string;
+//   name: string;
+//   fare: number;
+//   status: string;
+//   riderId: string;
+//   driverId: string;
+// }
+
+// interface AdminData {
+//   name?: string;
+//   email?: string;
+//   role?: string;
+// }
+
+// export default function AdminDashboard() {
+//   const router = useRouter();
+
+//   const [adminData, setAdminData] = useState<AdminData | null>(null);
+
+//   const [drivers, setDrivers] = useState<UserData[]>([]);
+//   const [riders, setRiders] = useState<UserData[]>([]);
+//   const [rides, setRides] = useState<RideData[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   // --- Authentication ---
+//   useEffect(() => {
+//     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+//       if (!user) {
+//         router.push("/");
+//         return;
+//       }
+
+//       const adminRef = doc(db, "admins", user.uid);
+//       const adminSnap = await getDoc(adminRef);
+
+//       if (adminSnap.exists()) {
+//         setAdminData(adminSnap.data());
+//         loadAllData(); // <--- now real-time
+//       } else {
+//         router.push("/");
+//       }
+
+//       setLoading(false);
+//     });
+
+//     return () => unsubscribe();
+//   }, []);
+
+//   // --- Load Data (drivers, riders, rides) ---
+
+//   const loadAllData = () => {
+//     // 🔵 Real-time: Drivers
+//     const unsubscribeDrivers = onSnapshot(
+//       collection(db, "drivers"),
+//       (snapshot) => {
+//         setDrivers(
+//           snapshot.docs.map((doc) => ({
+//             id: doc.id,
+//             ...doc.data(),
+//           }))
+//         );
+//       }
+//     );
+
+//     // 🟢 Real-time: Riders
+//     const unsubscribeRiders = onSnapshot(
+//       collection(db, "riders"),
+//       (snapshot) => {
+//         setRiders(
+//           snapshot.docs.map((doc) => ({
+//             id: doc.id,
+//             ...doc.data(),
+//           }))
+//         );
+//       }
+//     );
+
+//     // 🟠 Real-time: Rides
+//     const unsubscribeRides = onSnapshot(collection(db, "rides"), (snapshot) => {
+//       setRides(
+//         snapshot.docs.map((doc) => ({
+//           id: doc.id,
+//           ...doc.data(),
+//         }))
+//       );
+//     });
+
+//     // Return all unsubs so you can close listeners when admin logs out or leaves page
+//     return () => {
+//       unsubscribeDrivers();
+//       unsubscribeRiders();
+//       unsubscribeRides();
+//     };
+//   };
+
+//   if (loading)
+//     return (
+//       <div className="text-center text-2xl font-semibold mt-20">Loading...</div>
+//     );
+
+//   return (
+//     <div className="flex h-screen bg-gray-100">
+//       {/* <AdminSidebar
+//         name={adminData?.name}
+//         email={adminData?.email}
+//         role={adminData?.role}
+//       /> */}
+
+//       {/* MAIN CONTENT */}
+//       <main className="flex-1 p-8 overflow-y-auto">
+//         {/* Header */}
+//         <div className="flex justify-between items-center mb-10 border-b pb-4">
+//           <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
+//         </div>
+
+//         {/* Stats */}
+//         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+//           <div className="bg-white p-6 rounded-xl shadow border-t-4 border-emerald-500">
+//             <p className="text-gray-500 text-sm">Total Drivers</p>
+//             <p className="text-4xl font-bold">{drivers.length}</p>
+//           </div>
+
+//           <div className="bg-white p-6 rounded-xl shadow border-t-4 border-blue-500">
+//             <p className="text-gray-500 text-sm">Total Riders</p>
+//             <p className="text-4xl font-bold">{riders.length}</p>
+//           </div>
+
+//           <div className="bg-white p-6 rounded-xl shadow border-t-4 border-purple-500">
+//             <p className="text-gray-500 text-sm">Total Rides</p>
+//             <p className="text-4xl font-bold">{rides.length}</p>
+//           </div>
+//         </div>
+
+//         {/* Lists */}
+//         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+//           {/* Drivers */}
+//           <div className="bg-white rounded-xl shadow overflow-hidden">
+//             <div className="p-4 bg-gray-50 border-b">
+//               <h3 className="text-xl font-bold">Drivers ({drivers.length})</h3>
+//             </div>
+
+//             <ul className="max-h-96 overflow-y-auto divide-y">
+//               {drivers.map((driver) => (
+//                 <li key={driver.id} className="p-4 hover:bg-gray-50">
+//                   <p className="font-semibold">{driver.name}</p>
+//                   <p className="text-sm text-gray-500">{driver.email}</p>
+//                 </li>
+//               ))}
+//             </ul>
+//           </div>
+
+//           {/* Riders */}
+//           <div className="bg-white rounded-xl shadow overflow-hidden">
+//             <div className="p-4 bg-gray-50 border-b">
+//               <h3 className="text-xl font-bold">Riders ({riders.length})</h3>
+//             </div>
+
+//             <ul className="max-h-96 overflow-y-auto divide-y">
+//               {riders.map((rider) => (
+//                 <li key={rider.id} className="p-4 hover:bg-gray-50">
+//                   <p className="font-semibold">{rider.name}</p>
+//                   <p className="text-sm text-gray-500">{rider.email}</p>
+//                 </li>
+//               ))}
+//             </ul>
+//           </div>
+
+//           {/* Rides */}
+//           <div className="bg-white rounded-xl shadow overflow-hidden">
+//             <div className="p-4 bg-gray-50 border-b">
+//               <h3 className="text-xl font-bold">Rides ({rides.length})</h3>
+//             </div>
+
+//             <ul className="max-h-96 overflow-y-auto divide-y">
+//               {rides.map((ride) => (
+//                 <li key={ride.id} className="p-4 hover:bg-gray-50">
+//                   <p className="font-semibold">
+//                     {ride.pickup?.name ?? "Unknown Pickup"} →
+//                     {ride.destination?.name ?? "Unknown Destination"}
+//                   </p>
+//                   <p className="text-sm text-gray-500">Status: {ride.status}</p>
+//                   <p className="text-sm text-gray-400">
+//                     Fare: {ride.fare ?? 0} ETB
+//                   </p>
+//                 </li>
+//               ))}
+//             </ul>
+//           </div>
+//         </div>
+//       </main>
+//     </div>
+//   );
+// }
 
