@@ -3,13 +3,7 @@ import { useRouter } from "next/navigation";
 
 import { auth, db } from "../firebase/config";
 import { useEffect } from "react";
-import {
-  doc,
-  getDoc,
-  onSnapshot,
-  collection,
-  getDocs,
-} from "firebase/firestore";
+
 import { onAuthStateChanged } from "firebase/auth";
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +14,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  collection,
+  getDocs,
+} from "firebase/firestore";
 import {
   Search,
   UserPlus,
@@ -369,7 +370,7 @@ export function DriversPage() {
                   <h3>{selectedDriver.name}</h3>
                   <p className="text-sm mt-1" style={{ color: '#2D2D2D' }}>{selectedDriver.email}</p>
                 </div>
-                <Badge style={{ backgroundColor: getStatusColor(selectedDriver.status).bg, color: getStatusColor(selectedDriver.status).text }}>
+                <Badge >
                   {selectedDriver.status}
                 </Badge>
               </div>
